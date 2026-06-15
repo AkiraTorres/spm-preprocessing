@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spm-torres"
+version = "0.1.0"
+description = "Sequential Pattern Mining sobre logs de aprendizagem do Moodle (cursos 2060 e 2065)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas",
+    "numpy",
+    "prefixspan==0.5.2",
+    "gsppy==1.1",
+    "matplotlib",
+    "seaborn",
+]
+
+[project.optional-dependencies]
+dev = ["black==24.10.0", "pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 200

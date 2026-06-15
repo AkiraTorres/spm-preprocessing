@@ -1,0 +1,9 @@
+# Configuracao de experimento — Curso 2060
+# Espelha os parametros de src/spm/config.py para documentar cada execucao.
+# (Carregamento automatico de YAML pode ser adicionado depois; por ora serve
+#  como registro reproduzivel dos parametros usados.)
+course: 2060
+activity: 2
+use_split: false
+minsup: 0.08
+total_sequences: 11974

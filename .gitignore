@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------------------
+# Saidas geradas (reproduziveis a partir dos dados crus + scripts)
+# ---------------------------------------------------------------------------
+outputs/
+!outputs/.gitkeep
+!outputs/README.md
+
+# ---------------------------------------------------------------------------
+# Dados crus (NAO versionar — podem conter dados de estudantes)
+# ---------------------------------------------------------------------------
+data/
+
+# ---------------------------------------------------------------------------
+# Documentacao e notebooks (NAO versionar)
+# ---------------------------------------------------------------------------
+docs/
+notebooks/
+
+# Artefatos antigos que viviam na raiz
+test.csv
+general_info.csv
+result.zip
+*.7z
+*.zip
+
+# Figuras geradas
+*.png
+*.pdf
+
+# ---------------------------------------------------------------------------
+# Python
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Ambientes virtuais
+.venv/
+venv/
+win_venv/
+env/
+
+# IDE
+.idea/
+.vscode/

@@ -1,0 +1,6 @@
+# Configuracao de experimento — Curso 2065
+course: 2065
+activity: 1
+use_split: false
+minsup: 0.08
+total_sequences: 11974
