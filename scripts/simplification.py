@@ -332,16 +332,23 @@ def main(params: dict):
 
 
 def ready_main(params: dict):
-    activities_details = [
-        {"initial_date": 1573700400, "final_date": 1574391540, "assignment_id": 12874},
-        {"initial_date": 1574305200, "final_date": 1574996340, "assignment_id": 12875},
-        {"initial_date": 1574910000, "final_date": 1575600900, "assignment_id": 12876},
-
-        # {"initial_date": 1573527600, "final_date": 1574218500, "assignment_id": 12841},
-        # {"initial_date": 1574132400, "final_date": 1574823300, "assignment_id": 12842},
-        # {"initial_date": 1574737200, "final_date": 1575428100, "assignment_id": 12843},
-        # {"initial_date": 1575342000, "final_date": 1576032900, "assignment_id": 12844},
-    ]
+    # NOTA: estes activities_details sao especificos por curso (assignment_id e
+    # datas de abertura/fechamento de cada atividade). O bloco 12874-12876 e do
+    # curso 2065; o bloco 12841-12844 e do curso 2060. Mantenha coerente com
+    # COURSE em src/spm/config.py — aqui esta selecionado o 2060.
+    if COURSE == 2065:
+        activities_details = [
+            {"initial_date": 1573700400, "final_date": 1574391540, "assignment_id": 12874},
+            {"initial_date": 1574305200, "final_date": 1574996340, "assignment_id": 12875},
+            {"initial_date": 1574910000, "final_date": 1575600900, "assignment_id": 12876},
+        ]
+    else:  # 2060
+        activities_details = [
+            {"initial_date": 1573527600, "final_date": 1574218500, "assignment_id": 12841},
+            {"initial_date": 1574132400, "final_date": 1574823300, "assignment_id": 12842},
+            {"initial_date": 1574737200, "final_date": 1575428100, "assignment_id": 12843},
+            {"initial_date": 1575342000, "final_date": 1576032900, "assignment_id": 12844},
+        ]
     params["grade_path"] = f"./data/raw/{COURSE}/see_course{COURSE}_quiz_grades.csv"
     params["data"] = pd.read_csv(f"./data/raw/{COURSE}/see_course{COURSE}_logs_filtered.csv", index_col="id").sort_values("t")
     params["mapping"] = pd.read_csv(f"./data/raw/{COURSE}/event_mapping.csv")
