@@ -1,5 +1,6 @@
 import os.path
 import json
+import argparse
 import pandas as pd
 import csv
 import time
@@ -11,22 +12,25 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 import sys
 
-# Config centralizada (antes duplicada no topo de cada script).
+# Matriz de cenarios (fonte unica). Os parametros de execucao vem por flags;
+# os globals abaixo sao preenchidos em main() a partir dos argumentos parseados.
 sys.path.insert(0, "src")
-from spm.config import (
-    SCENERIES_NAMES as sceneries_names,
-    COURSE,
-    ACTIVITY as activity,
-    USE_SPLIT as use_split,
-    MINSUP as minsup,
-)
+from spm.sceneries import SCENERIES_NAMES as sceneries_names
 
 # =============================================================================
-# CONFIGURAÇÃO GLOBAL
+# CONFIGURAÇÃO GLOBAL (preenchida por flags em main())
 # =============================================================================
 
+COURSE = None
+activity = None
+use_split = False
+minsup = 0.08
+sceneries_root = "outputs/sceneries"
+mining_root = "outputs/mining_results"
+results_root = "outputs/results"
 
-total_sequences = 1732.0
+# Total de referencia para normalizacao de % (s_support); preenchido por flag.
+total_sequences = 11974.0
 
 # Cache global para evitar recálculos
 _SUPPORT_CACHE = {}
@@ -61,7 +65,7 @@ def format_tf_data(s) -> list:
 
 def read_params(file: str) -> str:
     """Constrói caminho do arquivo de entrada."""
-    base = f"./outputs/sceneries/{COURSE}/{activity}"
+    base = f"{sceneries_root}/{COURSE}/{activity}"
     return f"{base}/split_grade/{file}.json" if use_split else f"{base}/{file}.json"
 
 
@@ -802,7 +806,7 @@ def process_single_scenery(scenery, index, total, mining_path):
     
     try:
         final_result, scenery_info = calculate_metrics_for_scenery(
-            scenery, mining_path, read_params(scenery)
+            scenery, mining_path, read_params(scenery), minsup=minsup
         )
         
         if final_result is None or scenery_info is None:
@@ -904,12 +908,37 @@ def generate_consolidated_reports(results_path):
 # FUNÇÃO PRINCIPAL
 # =============================================================================
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Calcula metricas (Jaccard, suportes, notas) por cenario.")
+    parser.add_argument("-co", "--course", type=int, required=True, help="Numero do curso (ex.: 2060, 2065)")
+    parser.add_argument("-act", "--activity", type=int, required=True, help="Numero da atividade (inteiro)")
+    parser.add_argument("-ms", "--minsup", type=float, default=0.08, help="Suporte minimo usado na mineracao (default: 0.08)")
+    parser.add_argument(
+        "-ts", "--total-sequences", type=float, default=11974.0,
+        help="Total de referencia para normalizacao de s_support em %% (default: 11974)",
+    )
+    parser.add_argument("--use-split", action="store_true", help="Usa variantes _high/_low por nota")
+    parser.add_argument("--sceneries-dir", type=str, default="outputs/sceneries", help="Raiz dos cenarios de entrada")
+    parser.add_argument("--mining-dir", type=str, default="outputs/mining_results", help="Raiz dos resultados de mineracao")
+    parser.add_argument("--out-dir", type=str, default="outputs/results", help="Raiz de saida das metricas")
+    return parser.parse_args(argv)
+
+
+def main(args):
     """Calcula métricas para todos os cenários - modularizado e otimizado."""
-    global use_split, sceneries_names
-    
-    mining_path = f"outputs/mining_results/{COURSE}/{activity}"
-    results_path = f"outputs/results/{COURSE}/{activity}"
+    global COURSE, activity, use_split, minsup, total_sequences
+    global sceneries_names, sceneries_root, mining_root, results_root
+    COURSE = args.course
+    activity = args.activity
+    use_split = args.use_split
+    minsup = args.minsup
+    total_sequences = args.total_sequences
+    sceneries_root = args.sceneries_dir
+    mining_root = args.mining_dir
+    results_root = args.out_dir
+
+    mining_path = f"{mining_root}/{COURSE}/{activity}"
+    results_path = f"{results_root}/{COURSE}/{activity}"
     
     # Validação inicial
     if not os.path.exists(mining_path):
@@ -957,4 +986,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_args())

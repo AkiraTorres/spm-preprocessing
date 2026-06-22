@@ -6,17 +6,10 @@ import sys
 import time
 import pandas as pd
 
-# Config centralizada (antes COURSE estava fixo no topo deste script).
+# Matriz de cenarios (fonte unica). Todos os parametros de execucao
+# (curso, atividade, assignment_id, paths) vem por flags de CLI.
 sys.path.insert(0, "src")
-from spm.config import COURSE
-
-
-
-def save_to_csv(list_of_dataframes):
-    for df in list_of_dataframes:
-        if not os.path.exists(f"./outputs/sceneries/{COURSE}"):
-            os.makedirs(f"./outputs/sceneries/{COURSE}")
-        df["data"].to_csv(f"./outputs/sceneries/{COURSE}/{df['name']}.csv")
+from spm.sceneries import SCENERY_DEFINITIONS
 
 
 def event_mapping(event, t: int, params: dict):
@@ -256,184 +249,105 @@ def split_by_grade(prepared_data, threshold=0.5):
     return high_grade, low_grade
 
 
-def read_params(argv=None) -> dict:
-    parser = argparse.ArgumentParser(description="Process command-line parameters for temporal folding and file paths.")
-
-    parser.add_argument("-p", "--path", type=str, required=True, help="Path of the log file")
-    parser.add_argument("-sp", "--save-path", type=str, required=True, help="Path to save the file")
-    parser.add_argument("-pg", "--grade-path", type=str, required=True, help="Path of grades CSV file")
-    parser.add_argument("-pq", "--quiz-path", type=str, required=True, help="Path of quiz CSV file")
-    parser.add_argument("-mp", "--mapping-path", type=str, required=True, help="Path of event mapping CSV file")
-    parser.add_argument("-act", "--activity", type=int, required=True, help="Activity ID")
-    parser.add_argument("-id", "--assignment-id", type=int, required=True, help="Assignment ID")
-    parser.add_argument("-tf", "--temporal-folding", action="store_true", help="Enable temporal folding")
-    parser.add_argument("-m", "--multilevel", action="store_true", help="Enable multilevel sequential patterns")
-    parser.add_argument("-r", "--coalescing-repeating", action="store_true", help="Enable coalescing repeating")
-    parser.add_argument("-c", "--coalescing-hidden", action="store_true", help="Enable coalescing hidden")
-    parser.add_argument(
-        "-s", "--spell", action="store_true", help="Enable spell option and disable coalescing repeating"
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Pre-processa logs do Moodle gerando um JSON por cenario da matriz "
+        "(outputs/sceneries/{course}/{activity}/{scenery}.json)."
     )
-
+    parser.add_argument("-co", "--course", type=int, required=True, help="Numero do curso (ex.: 2060, 2065)")
+    parser.add_argument("-act", "--activity", type=int, required=True, help="Numero da atividade (inteiro)")
     parser.add_argument(
-        "--split-grade", action="store_true", help="Split datasets into high-grade and low-grade before simplification"
+        "-id", "--assignment-id", type=int, required=True,
+        help="Assignment ID da atividade; as datas (t_open/t_close) sao derivadas do quiz CSV",
     )
+    parser.add_argument(
+        "--logs", type=str, default=None,
+        help="CSV de logs (default: data/raw/{course}/see_course{course}_logs_filtered.csv)",
+    )
+    parser.add_argument(
+        "--grades", type=str, default=None,
+        help="CSV de notas (default: data/raw/{course}/see_course{course}_quiz_grades.csv)",
+    )
+    parser.add_argument(
+        "--quiz", type=str, default=None,
+        help="CSV da lista de quizzes (default: data/raw/{course}/see_course{course}_quiz_list.csv)",
+    )
+    parser.add_argument(
+        "--mapping", type=str, default=None,
+        help="CSV de mapeamento de eventos (default: data/raw/{course}/event_mapping.csv)",
+    )
+    parser.add_argument(
+        "--out-dir", type=str, default="outputs/sceneries",
+        help="Raiz de saida dos cenarios (default: outputs/sceneries)",
+    )
+    parser.add_argument("--split-grade", action="store_true", help="Gera variantes _high/_low por nota")
+    return parser.parse_args(argv)
 
-    # Parse the arguments
-    # args = parser.parse_args(argv)
-    args = parser.parse_args(argv[1:] if argv else None)
 
-    # Prepare the params dictionary with parsed arguments
+def build_params(args) -> dict:
+    course = args.course
+    base = f"data/raw/{course}"
+    logs = args.logs or f"{base}/see_course{course}_logs_filtered.csv"
+    grades = args.grades or f"{base}/see_course{course}_quiz_grades.csv"
+    quiz = args.quiz or f"{base}/see_course{course}_quiz_list.csv"
+    mapping = args.mapping or f"{base}/event_mapping.csv"
+
     params = {
-        "path": args.save_path,
-        "grade_path": args.grade_path,
-        "quiz_path": args.quiz_path,
+        "course": course,
         "activity": args.activity,
         "assignment_id": args.assignment_id,
-        "tf": args.temporal_folding,
-        "coalescing_repeating": args.coalescing_repeating,
-        "coalescing_hidden": args.coalescing_hidden,
-        "spell": args.spell,
-        "multilevel": args.multilevel,
-        "data": pd.read_csv(args.path, index_col="id").sort_values("t"),
-        "mapping": pd.read_csv(args.mapping_path),
-        "quiz": pd.read_csv(args.quiz_path),
+        "grade_path": grades,
+        "data": pd.read_csv(logs, index_col="id").sort_values("t"),
+        "mapping": pd.read_csv(mapping),
+        "quiz": pd.read_csv(quiz),
         "split_grade": args.split_grade,
     }
-
-    # Override coalescing_repeating if spell option is enabled
-    if args.spell:
-        params["coalescing_repeating"] = False
-
+    # Deriva initial_date/final_date (t_open/t_close) a partir do quiz CSV.
     params = get_dates(params)
-
     return params
 
 
-def main(params: dict):
-    if params["grade_path"]:
-        grade_df = pd.read_csv(params["grade_path"])
-    first_access, activity, grades = partitioning(params, grade_df)
-    activity = classify_events(activity, first_access)
-
-    events_by_user = prepare_database(activity, params, grades)
-    os.makedirs(params["path"], exist_ok=True)
-
+def run(args) -> None:
+    params = build_params(args)
+    course = params["course"]
+    activity = params["activity"]
+    scenery_dir = f"{args.out_dir}/{course}/{activity}"
+    os.makedirs(scenery_dir, exist_ok=True)
     if params["split_grade"]:
-        high_grade, low_grade = split_by_grade(events_by_user)
+        os.makedirs(f"{scenery_dir}/split_grade", exist_ok=True)
 
-        with open(params["path"] + "high.json", "w+") as file:
-            json.dump(high_grade, file, indent=2, default=lambda o: str(o))
+    grade_df = pd.read_csv(params["grade_path"]) if params["grade_path"] else None
 
-        with open(params["path"] + "low.json", "w+") as file:
-            json.dump(low_grade, file, indent=2, default=lambda o: str(o))
-    else:
-        with open(params["path"] + "user.json", "w+") as file:
-            json.dump(events_by_user, file, indent=2, default=lambda o: str(o))
+    print(f"Simplificacao | curso {course} atividade {activity} assignment {params['assignment_id']}")
+    print(f"  datas (do quiz CSV): {params['initial_date']} -> {params['final_date']}")
+    print(f"  cenarios: {len(SCENERY_DEFINITIONS)} -> {scenery_dir}\n")
 
+    for scenery in SCENERY_DEFINITIONS:
+        start = time.time()
+        params["multilevel"] = scenery["multilevel"]
+        params["coalescing_repeating"] = scenery["coalescing_repeating"]
+        params["coalescing_hidden"] = scenery["coalescing_hidden"]
+        params["spell"] = scenery["spell"]
+        params["tf"] = scenery["tf"]
 
-def ready_main(params: dict):
-    # NOTA: estes activities_details sao especificos por curso (assignment_id e
-    # datas de abertura/fechamento de cada atividade). O bloco 12874-12876 e do
-    # curso 2065; o bloco 12841-12844 e do curso 2060. Mantenha coerente com
-    # COURSE em src/spm/config.py — aqui esta selecionado o 2060.
-    if COURSE == 2065:
-        activities_details = [
-            {"initial_date": 1573700400, "final_date": 1574391540, "assignment_id": 12874},
-            {"initial_date": 1574305200, "final_date": 1574996340, "assignment_id": 12875},
-            {"initial_date": 1574910000, "final_date": 1575600900, "assignment_id": 12876},
-        ]
-    else:  # 2060
-        activities_details = [
-            {"initial_date": 1573527600, "final_date": 1574218500, "assignment_id": 12841},
-            {"initial_date": 1574132400, "final_date": 1574823300, "assignment_id": 12842},
-            {"initial_date": 1574737200, "final_date": 1575428100, "assignment_id": 12843},
-            {"initial_date": 1575342000, "final_date": 1576032900, "assignment_id": 12844},
-        ]
-    params["grade_path"] = f"./data/raw/{COURSE}/see_course{COURSE}_quiz_grades.csv"
-    params["data"] = pd.read_csv(f"./data/raw/{COURSE}/see_course{COURSE}_logs_filtered.csv", index_col="id").sort_values("t")
-    params["mapping"] = pd.read_csv(f"./data/raw/{COURSE}/event_mapping.csv")
-    params["quiz"] = pd.read_csv(f"./data/raw/{COURSE}/see_course{COURSE}_quiz_list.csv")
-    params["split_grade"] = False
-    for activity in range(1, len(activities_details) + 1):
-        params["activity"] = activity
-        params["initial_date"] = activities_details[activity - 1]["initial_date"]
-        params["final_date"] = activities_details[activity - 1]["final_date"]
-        params["assignment_id"] = activities_details[activity - 1]["assignment_id"]
+        first_access, activity_logs, grades = partitioning(params, grade_df)
+        activity_logs = classify_events(activity_logs, first_access)
+        events_by_user = prepare_database(activity_logs, params, grades)
 
-        grade_df = None
-        sceneries_names = [
-            # {"path": "0-zero", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": False, "remove_temporal_windowing": True, "remove_event_category_extraction": True},
-            {"path": "0-zero", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": False},
-            {"path": "1-first", "multilevel": True, "spell": False, "coalescing_repeating": True, "coalescing_hidden": True, "tf": False},
-            {"path": "2-second", "multilevel": True, "spell": False, "coalescing_repeating": True, "coalescing_hidden": False, "tf": False},
-            {"path": "3-third", "multilevel": True, "spell": False, "coalescing_repeating": False, "coalescing_hidden": True, "tf": False},
-
-            {"path": "4-fourth", "multilevel": True, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": False},
-            {"path": "5-fifth", "multilevel": False, "spell": False, "coalescing_repeating": True, "coalescing_hidden": True, "tf": False},
-            {"path": "6-sixth", "multilevel": False, "spell": False, "coalescing_repeating": True, "coalescing_hidden": False, "tf": False},
-            {"path": "7-seventh", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": True, "tf": False},
-
-            {"path": "8-eighth", "multilevel": True, "spell": True, "coalescing_hidden": True, "coalescing_repeating": False, "tf": False},
-            {"path": "9-ninth", "multilevel": True, "spell": True, "coalescing_hidden": False, "coalescing_repeating": False, "tf": False},
-            {"path": "10-tenth", "multilevel": False, "spell": True, "coalescing_hidden": True, "coalescing_repeating": False, "tf": False},
-            {"path": "11-eleventh", "multilevel": False, "spell": True, "coalescing_hidden": False, "coalescing_repeating": False, "tf": False},
-
-            {"path": "12-twelfth", "multilevel": True, "spell": False, "coalescing_repeating": True, "coalescing_hidden": True, "tf": True},
-            {"path": "13-thirteenth", "multilevel": True, "spell": False, "coalescing_repeating": True, "coalescing_hidden": False, "tf": True},
-            {"path": "14-fourteenth", "multilevel": True, "spell": False, "coalescing_repeating": False, "coalescing_hidden": True, "tf": True},
-            {"path": "15-fifteenth", "multilevel": True, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": True},
-
-            {"path": "16-sixteenth", "multilevel": False, "spell": False, "coalescing_repeating": True, "coalescing_hidden": True, "tf": True},
-            {"path": "17-seventeenth", "multilevel": False, "spell": False, "coalescing_repeating": True, "coalescing_hidden": False, "tf": True},
-            {"path": "18-eighteenth", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": True, "tf": True},
-            {"path": "19-nineteenth", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": True},
-
-            {"path": "20-twentieth", "multilevel": True, "spell": True, "coalescing_hidden": True, "coalescing_repeating": False, "tf": True},
-            {"path": "21-twenty_first", "multilevel": True, "spell": True, "coalescing_hidden": False, "coalescing_repeating": False, "tf": True},
-            {"path": "22-twenty_second", "multilevel": False, "spell": True, "coalescing_hidden": True, "coalescing_repeating": False, "tf": True},
-            {"path": "23-twenty_third", "multilevel": False, "spell": True, "coalescing_hidden": False, "coalescing_repeating": False, "tf": True},
-        ]
-        for scenery in sceneries_names:
-            start = time.time()
-            params["multilevel"] = scenery["multilevel"]
-            params["coalescing_repeating"] = scenery["coalescing_repeating"]
-            params["coalescing_hidden"] = scenery["coalescing_hidden"]
-            params["spell"] = scenery["spell"]
-            params["tf"] = scenery["tf"]
-            if params["split_grade"]:
-                params["path"] = f"outputs/sceneries/{COURSE}/{params["activity"]}/split_grade/{scenery['path']}"
-            else:
-                params["path"] = f"outputs/sceneries/{COURSE}/{params["activity"]}/{scenery['path']}"
-
-            if params["grade_path"]:
-                grade_df = pd.read_csv(params["grade_path"])
-            first_access, activity, grades = partitioning(params, grade_df)
-            activity = classify_events(activity, first_access)
-
-            events_by_user = prepare_database(activity, params, grades)
-
-            os.makedirs(f"./outputs/sceneries/{COURSE}/" + str(params["activity"]), exist_ok=True)
-
-            os.makedirs(f"./outputs/sceneries/{COURSE}/" + str(params["activity"]) + "/split_grade", exist_ok=True)
-
-            if params["split_grade"]:
-                print(f"Splitting dataset into high-grade and low-grade, {params["path"]}")
-                high_grade, low_grade = split_by_grade(events_by_user)
-
-                with open(params["path"] + "_high.json", "w+") as file:
-                    json.dump(high_grade, file, indent=2, default=lambda o: str(o))
-
-                with open(params["path"] + "_low.json", "w+") as file:
-                    json.dump(low_grade, file, indent=2, default=lambda o: str(o))
-            else:
-                with open(params["path"] + ".json", "w+") as file:
-                    json.dump(events_by_user, file, indent=2, default=lambda o: str(o))
-            print(f"Execution time, {params["path"]}: {(time.time() - start):.2f}")
-        print()
+        if params["split_grade"]:
+            high_grade, low_grade = split_by_grade(events_by_user)
+            base = f"{scenery_dir}/split_grade/{scenery['path']}"
+            with open(base + "_high.json", "w+") as file:
+                json.dump(high_grade, file, indent=2, default=lambda o: str(o))
+            with open(base + "_low.json", "w+") as file:
+                json.dump(low_grade, file, indent=2, default=lambda o: str(o))
+            out = base + "_{high,low}.json"
+        else:
+            out = f"{scenery_dir}/{scenery['path']}.json"
+            with open(out, "w+") as file:
+                json.dump(events_by_user, file, indent=2, default=lambda o: str(o))
+        print(f"  {scenery['path']}: {(time.time() - start):.2f}s -> {out}")
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 2 and sys.argv[1] == "test":
-        ready_main({})
-    else:
-        main(read_params(sys.argv))
+    run(parse_args())

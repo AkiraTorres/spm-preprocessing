@@ -1,48 +1,20 @@
-"""Configuracao central do projeto.
+"""Configuracao legada do projeto.
 
-Antes da reorganizacao, a lista ``sceneries_names`` e os parametros
-``COURSE`` / ``activity`` / ``use_split`` / ``minsup`` estavam duplicados no
-topo de cada script. Agora existe uma unica fonte de verdade: edite os valores
-aqui (ou via os YAMLs em ``configs/``) em vez de editar cada arquivo.
+Os scripts do pipeline principal (``simplification.py``, ``process_mining.py``,
+``metrics_calculation.py``) NAO usam mais este modulo: eles recebem todos os
+parametros de execucao por flags de linha de comando (ver ``--help`` de cada um
+ou ``scripts/run_pipeline.py``).
 
-Os scripts importam estes nomes, por exemplo::
-
-    from spm.config import SCENERIES_NAMES, COURSE, ACTIVITY, USE_SPLIT, MINSUP
+Os valores abaixo permanecem apenas para os scripts ainda nao migrados
+(``mining.py``, ``scripts/viz/*``). A matriz de cenarios e importada de
+``spm.sceneries`` (fonte unica) — nao a duplique aqui.
 """
 
-# ---------------------------------------------------------------------------
-# Cenarios (fonte unica — antes copiada em 5 arquivos)
-# ---------------------------------------------------------------------------
-SCENERIES_NAMES = [
-    "0-zero",
-    "1-first",
-    "2-second",
-    "3-third",
-    "4-fourth",
-    "5-fifth",
-    "6-sixth",
-    "7-seventh",
-    "8-eighth",
-    "9-ninth",
-    "10-tenth",
-    "11-eleventh",
-    "12-twelfth",
-    "13-thirteenth",
-    "14-fourteenth",
-    "15-fifteenth",
-    "16-sixteenth",
-    "17-seventeenth",
-    "18-eighteenth",
-    "19-nineteenth",
-    "20-twentieth",
-    "21-twenty_first",
-    "22-twenty_second",
-    "23-twenty_third",
-    # "24-twenty_fourth",
-]
+from spm.sceneries import SCENERIES_NAMES  # noqa: F401  (re-export p/ scripts legados)
 
 # ---------------------------------------------------------------------------
-# Parametros do experimento (knobs por execucao)
+# Parametros de execucao — LEGADO (apenas mining.py / viz/*)
+# Os scripts do pipeline principal recebem isto por flags.
 # ---------------------------------------------------------------------------
 COURSE = 2060          # 2060 ou 2065
 ACTIVITY = 2           # numero da atividade (inteiro)

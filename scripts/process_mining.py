@@ -1,5 +1,6 @@
 import os.path
 import json
+import argparse
 from gsppy.gsp import GSP
 from prefixspan import PrefixSpan
 import pandas as pd
@@ -7,15 +8,17 @@ import time
 import datetime
 import sys
 
-# Config centralizada (antes duplicada no topo de cada script).
+# Matriz de cenarios (fonte unica). Os parametros de execucao vem por flags;
+# os globals abaixo sao preenchidos em main() a partir dos argumentos parseados.
 sys.path.insert(0, "src")
-from spm.config import (
-    SCENERIES_NAMES as sceneries_names,
-    COURSE,
-    ACTIVITY as activity,
-    USE_SPLIT as use_split,
-    MINSUP as minsup,
-)
+from spm.sceneries import SCENERIES_NAMES as sceneries_names
+
+COURSE = None
+activity = None
+use_split = False
+minsup = 0.08
+sceneries_root = "outputs/sceneries"
+mining_root = "outputs/mining_results"
 
 
 
@@ -75,8 +78,8 @@ def format_tf_data(s) -> list:
 
 def read_params(file: str) -> str:
     """Constrói caminho do arquivo de entrada."""
-    global use_split
-    return f"./outputs/sceneries/{COURSE}/{activity}/split_grade/{file}.json" if use_split else f"./outputs/sceneries/{COURSE}/{activity}/{file}.json"
+    base = f"{sceneries_root}/{COURSE}/{activity}"
+    return f"{base}/split_grade/{file}.json" if use_split else f"{base}/{file}.json"
 
 
 def load_data(file_path):
@@ -139,14 +142,31 @@ def save_mining_results(mining_result, scenery, output_path):
     return mining_output
 
 
-def main():
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Minera padroes sequenciais (PrefixSpan) por cenario.")
+    parser.add_argument("-co", "--course", type=int, required=True, help="Numero do curso (ex.: 2060, 2065)")
+    parser.add_argument("-act", "--activity", type=int, required=True, help="Numero da atividade (inteiro)")
+    parser.add_argument("-ms", "--minsup", type=float, default=0.08, help="Suporte minimo do PrefixSpan (default: 0.08)")
+    parser.add_argument("--use-split", action="store_true", help="Usa variantes _high/_low por nota")
+    parser.add_argument("--sceneries-dir", type=str, default="outputs/sceneries", help="Raiz dos cenarios de entrada")
+    parser.add_argument("--out-dir", type=str, default="outputs/mining_results", help="Raiz de saida da mineracao")
+    return parser.parse_args(argv)
+
+
+def main(args):
     """Executa a mineração de processos para todos os cenários."""
-    global use_split, sceneries_names, activity
-    
+    global COURSE, activity, use_split, minsup, sceneries_names, sceneries_root, mining_root
+    COURSE = args.course
+    activity = args.activity
+    use_split = args.use_split
+    minsup = args.minsup
+    sceneries_root = args.sceneries_dir
+    mining_root = args.out_dir
+
     if use_split:
         sceneries_names = [f"{scenery}_{suffix}" for scenery in sceneries_names for suffix in ["high", "low"]]
-    
-    output_path = f"outputs/mining_results/{COURSE}/{activity}"
+
+    output_path = f"{mining_root}/{COURSE}/{activity}"
     
     print(f"Iniciando mineração de processos...")
     print(f"Curso: {COURSE}, Atividade: {activity}")
@@ -156,8 +176,7 @@ def main():
     for index, scenery in enumerate(sceneries_names, 1):
         begin = time.time()
         print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] [{index}/{len(sceneries_names)}] Processando {scenery}...", end=" | ")
-        
-        minsup = 0.08
+
         file_name = read_params(scenery)
         
         # Carregar dados
@@ -183,4 +202,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(parse_args())
