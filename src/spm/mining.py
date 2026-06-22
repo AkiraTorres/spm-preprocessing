@@ -96,15 +96,7 @@ def build_mining_output(mining_result) -> dict:
 
 
 def mine(sequences, minsup: float = 0.08) -> dict:
-    """Minera padrões sequenciais frequentes (PrefixSpan) a partir de sequências em memória.
-
-    Args:
-        sequences: lista de sequências por usuário (``events_by_user``), como
-            produzido por :func:`spm.simplification.simplify`.
-        minsup: suporte mínimo (fração das sequências).
-
-    Returns:
-        Dicionário ``{"1_sequences": {"sequences": [...]}, ...}`` com os padrões.
-    """
+    """Minera padrões frequentes (PrefixSpan) a partir das sequências por usuário
+    (``events_by_user``), devolvendo ``{"1_sequences": {"sequences": [...]}, ...}``."""
     formatted = format_tf_data(generate_data(sequences))
     return build_mining_output(prefix_mining(formatted, minsup))

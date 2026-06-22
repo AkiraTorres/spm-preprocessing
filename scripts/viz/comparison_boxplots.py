@@ -4,20 +4,16 @@ import seaborn as sns
 import numpy as np
 import os
 
-# --- 1. FUNÇÃO PARA GERAR DADOS SINTÉTICOS ---
-# Esta função cria dados aproximados que reproduzem as estatísticas
-# (média, desvio padrão, min, max, n) fornecidas nas tabelas originais.
+# Reproduz dados aproximados a partir das estatísticas (média, desvio, min, max, n).
 def gerar_dados(n, mean, std, min_val, max_val):
-    np.random.seed(42)  # Para garantir resultados consistentes e reprodutíveis
+    np.random.seed(42)
     data = np.random.normal(loc=mean, scale=std, size=n)
-    data = np.clip(data, min_val, max_val)  # Mantém os dados dentro dos limites [min, max]
+    data = np.clip(data, min_val, max_val)
     return data
 
-# --- 2. CONFIGURAÇÃO VISUAL ---
 sns.set_theme(style="whitegrid")
 os.makedirs("outputs/figures", exist_ok=True)
 
-# --- 3. GERAÇÃO E SALVAMENTO DO GRÁFICO (A): Jobs and Salaries ---
 print("Gerando e salvando o gráfico (a)...")
 
 # Criamos uma lista para armazenar os DataFrames de cada assignment separadamente.
@@ -58,7 +54,6 @@ plt.savefig('outputs/figures/boxplot_jobs.png', dpi=300, bbox_inches='tight')
 plt.close()
 
 
-# --- 4. GERAÇÃO E SALVAMENTO DO GRÁFICO (B): Database ---
 print("Gerando e salvando o gráfico (b)...")
 
 # Processo idêntico para o curso de Database

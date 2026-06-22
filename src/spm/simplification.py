@@ -74,9 +74,7 @@ def coalescing_hidden(events, multilevel=False):
         except IndexError:
             pass
 
-    # get index list in reverse order
     remove_indexes = sorted(remove_indexes, reverse=True)
-    # drop elements in place
     for index in remove_indexes:
         del events[index]
 
@@ -92,9 +90,7 @@ def coalescing_repeating(events):
                     remove_indexes.append(i + 1)
         except IndexError:
             pass
-    # get index list in reverse order
     remove_indexes = sorted(remove_indexes, reverse=True)
-    # drop elements in place
     for index in remove_indexes:
         del events[index]
 
@@ -113,21 +109,17 @@ def spell(events):
                     remove_indexes.append(i)
                 else:
                     remove_indexes.append(i + 1)
-            # events[i]["event"] = events[i]["event"] + f"-{spell_length}"
             if 2 < spell_length <= 5:
                 events[i]["event"] = events[i]["event"] + f"_SOME"
             elif spell_length > 5:
                 events[i]["event"] = events[i]["event"] + f"_MANY"
         except IndexError:
             pass
-    # get index list in reverse order
     remove_indexes = sorted(remove_indexes, reverse=True)
-    # drop elements in place
     for index in remove_indexes:
         del events[index]
 
 
-# return a sequence of catalogued events based on a dataframe of events
 def generate_sequence_from_df(df, params: dict):
     e = list(df.apply(lambda x: event_mapping([x.component, x.action, x.target], x.t, params), axis=1))
     if True or params.get("remove_temporal_windowing"):
@@ -164,7 +156,6 @@ def generate_sequence_from_df(df, params: dict):
     return sessions
 
 
-# make the database ready for GSP and prefix datamining algorithms
 def prepare_database(df, params: dict, grade_df=None) -> list:
     events_by_user = []
     unique_users = df.drop_duplicates(subset=["userid"])
@@ -234,25 +225,10 @@ def split_by_grade(prepared_data, threshold=0.5):
 
 def simplify(logs_df, mapping_df, scenario, *, assignment_id, initial_date, final_date,
              grades_df=None, split_grade=False):
-    """Simplifica os logs de uma atividade segundo um cenário, em memória.
-
-    Args:
-        logs_df: DataFrame de logs crus do Moodle (colunas userid, t, component,
-            action, target, assignment_id, ...).
-        mapping_df: DataFrame de mapeamento de eventos (component/action/target -> class).
-        scenario: dict com as flags do cenário (multilevel, spell,
-            coalescing_repeating, coalescing_hidden, tf) — ver
-            :data:`spm.sceneries.SCENERY_DEFINITIONS`.
-        assignment_id: ID da atividade a recortar dos logs.
-        initial_date, final_date: janela temporal (timestamps) da atividade;
-            normalmente derivada do quiz CSV via :func:`get_dates`.
-        grades_df: DataFrame de notas (opcional); se dado, anexa grade/max_grade.
-        split_grade: se True, devolve ``(high, low)`` separados por nota.
-
-    Returns:
-        Lista de sequências por usuário (``events_by_user``), ou a tupla
-        ``(high_grade, low_grade)`` quando ``split_grade=True``.
-    """
+    """Simplifica os logs de uma atividade segundo um ``scenario`` (dict de flags),
+    recortando pela janela ``[initial_date, final_date]`` e pelo ``assignment_id``.
+    Devolve a lista de sequências por usuário, ou ``(high, low)`` quando
+    ``split_grade`` e há ``grades_df``."""
     params = {
         "data": logs_df.sort_values("t"),
         "mapping": mapping_df,

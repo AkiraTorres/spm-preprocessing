@@ -21,7 +21,6 @@ def build_parser():
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    # pipeline
     p_pipe = sub.add_parser("pipeline", help="Roda as 3 etapas em sequência")
     _add_common(p_pipe)
     p_pipe.add_argument("-id", "--assignment-id", type=int, default=None,
@@ -31,7 +30,6 @@ def build_parser():
                         help="Total de referência p/ normalização de %% (default: 11974)")
     p_pipe.add_argument("--use-split", action="store_true", help="Usa variantes _high/_low por nota")
 
-    # simplify
     p_simp = sub.add_parser("simplify", help="Pré-processa logs -> cenários (JSON)")
     _add_common(p_simp)
     p_simp.add_argument("-id", "--assignment-id", type=int, default=None,
@@ -43,7 +41,6 @@ def build_parser():
     p_simp.add_argument("--out-dir", type=str, default="outputs/sceneries", help="Raiz de saída dos cenários")
     p_simp.add_argument("--split-grade", action="store_true", help="Gera variantes _high/_low por nota")
 
-    # mine
     p_mine = sub.add_parser("mine", help="Minera padrões sequenciais (PrefixSpan)")
     _add_common(p_mine)
     p_mine.add_argument("-ms", "--minsup", type=float, default=0.08, help="Suporte mínimo (default: 0.08)")
@@ -51,7 +48,6 @@ def build_parser():
     p_mine.add_argument("--sceneries-dir", type=str, default="outputs/sceneries", help="Raiz dos cenários de entrada")
     p_mine.add_argument("--out-dir", type=str, default="outputs/mining_results", help="Raiz de saída da mineração")
 
-    # metrics
     p_met = sub.add_parser("metrics", help="Calcula métricas + relatórios consolidados")
     _add_common(p_met)
     p_met.add_argument("-ms", "--minsup", type=float, default=0.08, help="Suporte mínimo (default: 0.08)")

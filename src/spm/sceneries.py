@@ -1,18 +1,12 @@
-"""Definicao da matriz de cenarios do experimento.
+"""Matriz de cenarios do experimento.
 
-Cada cenario e uma combinacao fixa das etapas de simplificacao
-(multilevel, spell, coalescing_repeating, coalescing_hidden, temporal folding).
-Isto NAO e um "knob" por execucao — e a definicao do experimento em si —, por
-isso vive aqui como dado importavel, e nao como flag de linha de comando.
-
-Os parametros que mudam a cada execucao (curso, atividade, assignment_id,
-minsup, ...) sao passados pelos scripts via flags de CLI.
-
-Fonte unica: antes a lista de nomes estava em ``config.py`` e os dicts completos
-estavam duplicados dentro de ``scripts/simplification.py``.
+Cada cenario e uma combinacao fixa das etapas de simplificacao (multilevel,
+spell, coalescing_repeating, coalescing_hidden, temporal folding). Como e a
+definicao do experimento em si, vive aqui como dado importavel. Os parametros
+que mudam a cada execucao (curso, atividade, assignment_id, minsup) vem por flags.
 """
 
-# Matriz completa: ordem importa (o indice define o numero do cenario).
+# A ordem importa: o indice define o numero do cenario.
 SCENERY_DEFINITIONS = [
     {"path": "0-zero", "multilevel": False, "spell": False, "coalescing_repeating": False, "coalescing_hidden": False, "tf": False},
     {"path": "1-first", "multilevel": True, "spell": False, "coalescing_repeating": True, "coalescing_hidden": True, "tf": False},
@@ -45,5 +39,4 @@ SCENERY_DEFINITIONS = [
     {"path": "23-twenty_third", "multilevel": False, "spell": True, "coalescing_hidden": False, "coalescing_repeating": False, "tf": True},
 ]
 
-# Nomes na ordem da matriz (fonte unica para os scripts de mineracao/metricas).
 SCENERIES_NAMES = [s["path"] for s in SCENERY_DEFINITIONS]

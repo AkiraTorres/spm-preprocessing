@@ -2,12 +2,9 @@
 
 Cada função executa uma etapa para um ``(curso, atividade)``, lendo de
 ``data/raw`` e escrevendo em ``outputs/``, iterando os 24 cenários da matriz.
-Reproduzem o comportamento dos antigos ``scripts/*.py``; a CLI (:mod:`spm.cli`)
-é uma fina camada sobre estas funções.
-
-Para uso programático em memória, prefira as funções de núcleo
-(:func:`spm.simplification.simplify`, :func:`spm.mining.mine`,
-:func:`spm.metrics.metrics`).
+A CLI (:mod:`spm.cli`) é uma fina camada sobre estas funções. Para uso
+programático em memória, prefira as funções de núcleo (:func:`simplify`,
+:func:`mine`, :func:`metrics`).
 """
 import datetime
 import json
@@ -22,9 +19,7 @@ from .mining import mine
 from .sceneries import SCENERY_DEFINITIONS, SCENERIES_NAMES
 from .simplification import get_dates, simplify
 
-# Mapa (curso -> assignment_id por atividade; posição = nº da atividade).
-# Permite derivar o assignment_id a partir de (curso, atividade); pode ser
-# sobrescrito explicitamente nas chamadas/flags.
+# Assignment id por atividade de cada curso (posição = número da atividade).
 ASSIGNMENT_IDS = {
     2060: [12841, 12842, 12843, 12844],
     2065: [12874, 12875, 12876],
@@ -54,10 +49,6 @@ def _scenery_path(sceneries_dir, course, activity, scenery, use_split):
     base = f"{sceneries_dir}/{course}/{activity}"
     return f"{base}/split_grade/{scenery}.json" if use_split else f"{base}/{scenery}.json"
 
-
-# =============================================================================
-# ETAPA 1 — SIMPLIFICAÇÃO
-# =============================================================================
 
 def run_simplification(course, activity, assignment_id=None, *, logs=None, grades=None,
                        quiz=None, mapping=None, out_dir="outputs/sceneries", split_grade=False):
@@ -109,10 +100,6 @@ def run_simplification(course, activity, assignment_id=None, *, logs=None, grade
         print(f"  {scenery['path']}: {(time.time() - start):.2f}s -> {out}")
 
 
-# =============================================================================
-# ETAPA 2 — MINERAÇÃO
-# =============================================================================
-
 def run_mining(course, activity, *, minsup=0.08, use_split=False,
                sceneries_dir="outputs/sceneries", out_dir="outputs/mining_results"):
     """Minera padrões para cada cenário, salvando em ``out_dir/{course}/{activity}``."""
@@ -141,10 +128,6 @@ def run_mining(course, activity, *, minsup=0.08, use_split=False,
 
     print(f"\nMineração concluída! Resultados salvos em: {output_path}")
 
-
-# =============================================================================
-# ETAPA 3 — MÉTRICAS
-# =============================================================================
 
 def run_metrics(course, activity, *, minsup=0.08, total_sequences=11974.0, use_split=False,
                 sceneries_dir="outputs/sceneries", mining_dir="outputs/mining_results",
@@ -199,18 +182,14 @@ def run_metrics(course, activity, *, minsup=0.08, total_sequences=11974.0, use_s
 
     general_info = io.update_general_info(general_info, new_lines)
 
-    # general_info.csv precisa existir ANTES dos relatórios (get_supports_by_scenery o lê).
+    # get_supports_by_scenery lê este arquivo, então ele precisa existir antes dos relatórios.
     general_info.to_csv(f"{results_path}/general_info.csv", sep=";", index=False)
-    print(f"\n✓ general_info.csv salvo com {len(general_info)} cenários")
+    print(f"\ngeneral_info.csv salvo com {len(general_info)} cenários")
 
     io.generate_consolidated_reports(results_path, sceneries, total_sequences)
 
     print(f"\nCálculo de métricas concluído! Resultados salvos em: {results_path}")
 
-
-# =============================================================================
-# PIPELINE COMPLETO
-# =============================================================================
 
 def run_pipeline(course, activity, assignment_id=None, *, minsup=0.08, total_sequences=11974.0,
                  use_split=False):

@@ -13,10 +13,6 @@ import pandas as pd
 from .metrics import calculate_support_statistics, parse_mean_std
 
 
-# =============================================================================
-# CENÁRIOS E RESULTADOS DE MINERAÇÃO
-# =============================================================================
-
 def load_sceneries(file_path):
     """Carrega um JSON de cenário (lista de sequências por usuário); None se ausente."""
     if not os.path.exists(file_path):
@@ -40,10 +36,6 @@ def load_mining(scenery, mining_path):
     with open(mining_file, "r") as f:
         return json.load(f)
 
-
-# =============================================================================
-# RESULTADOS DE MÉTRICAS (JSON + CSV por cenário)
-# =============================================================================
 
 def write_result(data, file_name, path, save_csv=False):
     """Grava o detalhamento de um cenário em ``{path}/json/{file_name}.json``."""
@@ -102,10 +94,6 @@ def write_csv(file_name, path):
         df.to_csv(f"{csv_path}/{file_name}.csv", sep=";", index=False)
 
 
-# =============================================================================
-# general_info.csv
-# =============================================================================
-
 def initialize_general_info(results_path):
     """Carrega o general_info.csv existente ou cria um DataFrame vazio com o schema."""
     general_info_columns = {
@@ -155,10 +143,6 @@ def update_general_info(general_info, new_lines):
 
     return general_info
 
-
-# =============================================================================
-# RELATÓRIOS CONSOLIDADOS
-# =============================================================================
 
 def generate_total_csv(results_path, sceneries_names):
     """Gera ``total.csv`` consolidando todos os cenários."""
@@ -261,7 +245,7 @@ def generate_consolidated_reports(results_path, sceneries_names, total_sequences
         print("  - Calculando porcentagens de suporte...")
         alter_support_to_percentage(results_path, total_sequences)
 
-        print("✓ Relatórios consolidados gerados com sucesso!")
+        print("Relatórios consolidados gerados.")
     except Exception as e:
         print(f"ERRO ao gerar relatórios: {str(e)}")
         import traceback

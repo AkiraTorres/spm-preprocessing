@@ -5,7 +5,6 @@ import numpy as np
 import os
 import sys
 
-# Config centralizada (antes duplicada no topo de cada script).
 sys.path.insert(0, "src")
 from spm.config import SCENERIES_NAMES as sceneries_names, COURSE, ACTIVITY
 

@@ -14,10 +14,6 @@ import numpy as np
 import pandas as pd
 
 
-# =============================================================================
-# CARREGAMENTO E FORMATAÇÃO DE DADOS (em memória)
-# =============================================================================
-
 def generate_data(data):
     """Gera DataFrame (uma linha por sessão) a partir do JSON de cenário."""
     rows = [
@@ -46,13 +42,9 @@ def extract_events(event_list):
 
 
 def extract_events_vectorized(events_series):
-    """Extrai nomes de evento de forma vetorizada."""
+    """Extrai os nomes de evento de cada lista de uma Series."""
     return events_series.apply(lambda x: [event_dict["event"] for event_dict in x])
 
-
-# =============================================================================
-# CÁLCULO DE MÉTRICAS BÁSICAS
-# =============================================================================
 
 def is_subsequence(subseq, sequence):
     """Verifica se ``subseq`` é subsequência de ``sequence``."""
@@ -157,10 +149,6 @@ def get_sequences_length(data):
     return int(lengths.min()), int(lengths.max()), float(lengths.mean()), float(lengths.std(ddof=1))
 
 
-# =============================================================================
-# JACCARD (SIMILARIDADE / DISTÂNCIA)
-# =============================================================================
-
 def jaccard_similarity(seq1, seq2):
     """Coeficiente de Jaccard entre duas sequências."""
     set1 = set(seq1)
@@ -206,10 +194,6 @@ def calculate_scenery_jaccard_diversity(all_patterns):
     return statistics.mean(distances) if distances else 0.0
 
 
-# =============================================================================
-# FORMATAÇÃO DE ESTATÍSTICAS (usadas também por relatórios consolidados)
-# =============================================================================
-
 def format_stat_with_std(values, decimals=2):
     """Formata como ``"média (+- desvio)"``."""
     if hasattr(values, 'tolist'):
@@ -247,10 +231,6 @@ def calculate_support_statistics(scenery, data):
         "s_support": format_stat_with_std(data['ids']),
     }
 
-
-# =============================================================================
-# PROCESSAMENTO DE PADRÕES E CENÁRIOS
-# =============================================================================
 
 def compute_pattern_metrics(seq, formatted, all_sequences, original_seq, max_grade, minsup, cache=None):
     """Calcula todas as métricas de um único padrão."""
@@ -380,20 +360,9 @@ def calculate_general_statistics(lengths, times, original_seq, total_sequences,
 
 
 def metrics(mining_results, sequences, *, scenery="0", minsup=0.08):
-    """Calcula todas as métricas de um cenário, em memória.
-
-    Args:
-        mining_results: dicionário de padrões minerados (saída de
-            :func:`spm.mining.mine`).
-        sequences: lista de sequências por usuário (``events_by_user``), saída de
-            :func:`spm.simplification.simplify`.
-        scenery: rótulo do cenário (usado na coluna ``scenery`` do general_info).
-        minsup: suporte mínimo usado na mineração.
-
-    Returns:
-        Tupla ``(final_result, general_info)`` — o detalhamento por padrão e a
-        linha de estatísticas gerais do cenário; ``(None, None)`` se sem dados.
-    """
+    """Calcula as métricas de um cenário a partir dos padrões minerados e das
+    sequências, em memória. Devolve ``(final_result, general_info)`` ou
+    ``(None, None)`` se não houver dados."""
     all_sequences = generate_data(sequences)
     if all_sequences.empty:
         return None, None
@@ -405,13 +374,11 @@ def metrics(mining_results, sequences, *, scenery="0", minsup=0.08):
     formatted = format_tf_data(all_sequences)
     all_sequences["events"] = extract_events_vectorized(all_sequences["events"])
 
-    # Inicializar estruturas
     final_result = {
         f"{i}_sequences": {"sequences": [], "most_repeated": {}, "least_repeated": {}}
         for i in range(1, len(mining_results) + 1)
     }
 
-    # Primeira passagem: métricas básicas por padrão
     for key, data in mining_results.items():
         for seq in data["sequences"]:
             pattern_metrics = compute_pattern_metrics(
@@ -423,11 +390,9 @@ def metrics(mining_results, sequences, *, scenery="0", minsup=0.08):
         final_result[key]["most_repeated"] = most
         final_result[key]["least_repeated"] = least
 
-    # Agrupar padrões e calcular Jaccard
     patterns_by_size, all_patterns = group_patterns_by_size(final_result)
     apply_jaccard_distances(final_result, patterns_by_size)
 
-    # Coletar estatísticas
     all_lengths = []
     all_times = []
     all_jaccard_distances = []
@@ -440,7 +405,6 @@ def metrics(mining_results, sequences, *, scenery="0", minsup=0.08):
         for sequence in data["sequences"]:
             all_jaccard_distances.append(sequence["jaccard_distance"])
 
-    # Métricas gerais
     scenery_diversity = calculate_scenery_jaccard_diversity(all_patterns)
     total_patterns = sum(len(data["sequences"]) for data in mining_results.values())
 

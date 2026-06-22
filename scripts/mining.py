@@ -10,8 +10,6 @@ import datetime
 import sys
 import numpy as np
 
-# Config centralizada (antes duplicada no topo de cada script).
-# Os scripts rodam a partir da raiz do repo (como os caminhos relativos abaixo).
 sys.path.insert(0, "src")
 from spm.config import (
     SCENERIES_NAMES as sceneries_names,
