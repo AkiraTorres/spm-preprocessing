@@ -4,33 +4,38 @@ Projeto de pesquisa que minera sequências frequentes de eventos a partir de
 traços de atividade de estudantes (logs do Moodle LMS) e calcula métricas
 (suporte, notas, time spans, diversidade de Jaccard) em diferentes cenários.
 
-Dois cursos são estudados: **2060** e **2065**, cada um com várias atividades
-(inteiros) e até 24 cenários nomeados (`0-zero` … `23-twenty_third`).
+Dois cursos foram estudados no mestrado (**2060** e **2065**), mas o código é
+genérico: cada curso tem várias atividades (inteiros) e 24 cenários nomeados
+(`0-zero` … `23-twenty_third`).
 
-> Esta é a versão **reorganizada** do projeto. O código é o mesmo dos scripts
-> originais, com três mudanças estruturais: (1) o pipeline principal recebe
-> **todos os parâmetros por flags de CLI** (nada de hardcode); (2) a matriz de
-> 24 cenários vive numa fonte única, `src/spm/sceneries.py`; e (3) separação
-> entre dados de entrada (`data/raw/`), código (`src/`, `scripts/`) e saídas
+O projeto é uma **biblioteca instalável** (`spm`), usável de duas formas:
+
+1. **Importando funções** em Python — inclusive operando sobre os próprios dados
+   em memória (`simplify` → `mine` → `metrics`).
+2. **Pela CLI** `spm` (subcomandos `simplify` / `mine` / `metrics` / `pipeline`).
+
+> O pipeline recebe **todos os parâmetros por argumentos** (nada de hardcode); a
+> matriz de 24 cenários vive numa fonte única (`src/spm/sceneries.py`); e há
+> separação entre dados de entrada (`data/raw/`), código (`src/spm/`) e saídas
 > geradas (`outputs/`, fora do versionamento).
 
 ## Estrutura
 
 ```
 .
-├── src/spm/              # pacote compartilhado
+├── src/spm/              # a biblioteca
+│   ├── __init__.py       # API pública (simplify, mine, metrics, run_*)
+│   ├── simplification.py # NÚCLEO: transforms + simplify() (pré-processamento)
+│   ├── mining.py         # NÚCLEO: mine() (PrefixSpan)
+│   ├── metrics.py        # NÚCLEO: metrics() (Jaccard, suportes, notas)
+│   ├── io.py             # leitura/escrita JSON/CSV e relatórios consolidados
+│   ├── pipeline.py       # orquestradores file-based: run_simplification/mining/metrics + run_pipeline
+│   ├── cli.py            # comando `spm` (argparse, subcomandos)
 │   ├── sceneries.py      # FONTE ÚNICA: matriz dos 24 cenários (SCENERY_DEFINITIONS)
-│   ├── config.py         # legado: knobs usados só por mining.py e viz/*
+│   ├── config.py         # legado: knobs usados só por scripts/mining.py e viz/*
 │   └── paths.py          # esquema de diretórios (data/raw, outputs/)
-├── scripts/              # scripts executáveis do pipeline (rodar da raiz)
-│   ├── run_pipeline.py   # driver: roda e valida as 3 etapas via flags (fail-fast)
-│   ├── simplification.py
-│   ├── process_mining.py
-│   ├── mining.py
-│   ├── metrics_calculation.py
-│   ├── order.py
-│   ├── support_percentage.py / percentagesupport.py
-│   ├── scenario_metrics.py
+├── scripts/              # scripts legados (NÃO fazem parte da lib)
+│   ├── mining.py, order.py, scenario_metrics.py, support_percentage.py
 │   └── viz/              # gráficos (analysis, plot_patterns, comparison_boxplots)
 ├── configs/              # parâmetros por experimento (course_2060.yaml, course_2065.yaml)
 ├── data/raw/{course}/    # CSVs crus do Moodle (NÃO versionados — ver data/README.md)
@@ -41,78 +46,84 @@ Dois cursos são estudados: **2060** e **2065**, cada um com várias atividades
 │   └── figures/
 ├── notebooks/            # exploração (.ipynb, no .gitignore)
 ├── docs/                 # CODE_ORGANIZATION, JACCARD_METRICS, OPTIMIZATIONS (no .gitignore)
-├── pyproject.toml
+├── pyproject.toml        # empacotamento + entry point `spm`
 └── requirements.txt
 ```
 
-## Configuração
+## Instalação
 
-O pipeline principal **não tem mais nada hardcoded**: curso, atividade,
-`assignment_id`, `minsup`, `total_sequences` e caminhos são passados por **flags
-de CLI** (veja `--help` de cada script). Não é preciso editar nenhum arquivo
-para trocar de curso/atividade.
+```bash
+pip install -e .            # instala a lib + o comando `spm`
+pip install -e ".[viz]"     # opcional: extras p/ os scripts de gráficos legados
+pip install -e ".[gsp]"     # opcional: algoritmo GSP (spm.mining.gsp_mining)
+```
+
+Dependências de runtime: `pandas`, `numpy`, `prefixspan`. `matplotlib`/`seaborn`
+(extra `viz`) e `gsppy` (extra `gsp`) são opcionais.
+
+## Uso como biblioteca (Python)
+
+A API de **núcleo** opera em memória — você passa os próprios dados e recebe os
+resultados de volta, encadeando as etapas:
+
+```python
+import pandas as pd
+from spm import simplify, mine, metrics, SCENERY_DEFINITIONS
+
+logs    = pd.read_csv("data/raw/2060/see_course2060_logs_filtered.csv", index_col="id")
+mapping = pd.read_csv("data/raw/2060/event_mapping.csv")
+grades  = pd.read_csv("data/raw/2060/see_course2060_quiz_grades.csv")
+
+scenario = SCENERY_DEFINITIONS[1]                       # flags do cenário "1-first"
+seqs = simplify(logs, mapping, scenario,                # -> sequências por usuário
+                assignment_id=12842,
+                initial_date=1574132400, final_date=1574823300,
+                grades_df=grades)
+patterns       = mine(seqs, minsup=0.08)                # -> padrões frequentes
+final, general = metrics(patterns, seqs, minsup=0.08)   # -> métricas do cenário
+```
+
+> As datas (`t_open`/`t_close`) podem ser derivadas do quiz CSV com
+> `spm.simplification.get_dates(quiz_df, assignment_id)`.
+
+Para reproduzir o experimento completo a partir dos arquivos (lê `data/raw/`,
+escreve `outputs/`), use os **orquestradores**:
+
+```python
+from spm import run_pipeline   # ou run_simplification / run_mining / run_metrics
+run_pipeline(course=2060, activity=2, total_sequences=11974)
+```
+
+## Uso pela CLI (`spm`)
+
+O comando `spm` assume a **raiz do repositório** como diretório de trabalho
+(os caminhos de entrada/saída são relativos a ela). O `assignment_id` é derivado
+de `(curso, atividade)`; sobrescreva com `--assignment-id` se precisar.
+
+```bash
+# Pipeline completo (as 3 etapas em sequência)
+spm pipeline --course 2060 --activity 2 --total-sequences 11974
+
+# Ou etapa por etapa:
+spm simplify --course 2060 --activity 2 --assignment-id 12842
+spm mine     --course 2060 --activity 2 --minsup 0.08
+spm metrics  --course 2060 --activity 2 --minsup 0.08 --total-sequences 11974
+```
+
+Flags úteis: `--minsup`, `--use-split` (variantes `_high`/`_low` por nota) e
+`--*-dir` para mudar as raízes de entrada/saída. Veja `spm <subcomando> --help`.
+
+## Configuração
 
 - A **matriz dos 24 cenários** (combinações de `multilevel`/`spell`/
   `coalescing_repeating`/`coalescing_hidden`/`tf`) é definição fixa do
   experimento e vive numa fonte única: `src/spm/sceneries.py`
   (`SCENERY_DEFINITIONS`). Edite ali apenas se quiser mudar os cenários em si.
-- As **datas** de cada atividade (`t_open`/`t_close`) são derivadas
-  automaticamente do CSV de quizzes a partir do `assignment_id` — não são mais
-  digitadas.
-- `src/spm/config.py` permanece apenas como **legado** para os scripts fora do
-  pipeline principal (`mining.py`, `viz/*`), que ainda o importam.
+- O mapa `(curso, atividade) -> assignment_id` fica em
+  `spm.pipeline.ASSIGNMENT_IDS`.
+- `src/spm/config.py` permanece apenas como **legado** para os scripts fora da
+  biblioteca (`scripts/mining.py`, `scripts/viz/*`), que ainda o importam.
 - Os YAMLs em `configs/` documentam os parâmetros de cada execução.
-
-## Instalação
-
-```bash
-pip install -r requirements.txt
-# ou, para usar o pacote instalável:
-pip install -e .
-```
-
-## Como rodar
-
-Os scripts assumem a **raiz do repositório** como diretório de trabalho
-(os caminhos de entrada/saída são relativos a ela).
-
-### Pipeline completo (recomendado)
-
-`scripts/run_pipeline.py` roda as 3 etapas em sequência, passando tudo por flags
-e validando a saída de cada etapa antes da próxima (fail-fast). O `assignment_id`
-é derivado de `(curso, atividade)` por um mapa interno; sobrescreva com
-`--assignment-id` se precisar.
-
-```bash
-# Curso 2060, atividade 2 (assignment_id derivado automaticamente)
-python scripts/run_pipeline.py --course 2060 --activity 2 --total-sequences 11974
-
-# Outras flags: --minsup 0.1, --use-split, --assignment-id 12842,
-#               --python /caminho/para/python
-```
-
-### Etapas individuais
-
-Cada etapa também roda sozinha (veja `--help`):
-
-```bash
-# 1. Pré-processa logs crus -> outputs/sceneries/{course}/{activity}/
-python scripts/simplification.py --course 2060 --activity 2 --assignment-id 12842
-
-# 2. Mineração PrefixSpan -> outputs/mining_results/{course}/{activity}/
-python scripts/process_mining.py --course 2060 --activity 2 --minsup 0.08
-
-# 3. Métricas (Jaccard, suportes, notas) -> outputs/results/{course}/{activity}/
-python scripts/metrics_calculation.py --course 2060 --activity 2 \
-    --minsup 0.08 --total-sequences 11974
-
-# Utilitário: estatísticas de comprimento de sequência
-python scripts/scenario_metrics.py ./outputs/sceneries/2060/2/
-
-# Visualizações (scripts legados — ainda usam src/spm/config.py)
-python scripts/viz/analysis.py
-python scripts/viz/plot_patterns.py
-```
 
 ## Dados
 

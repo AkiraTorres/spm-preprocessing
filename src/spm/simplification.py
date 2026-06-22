@@ -1,15 +1,18 @@
-import argparse
-import json
-import os
-import re
-import sys
-import time
-import pandas as pd
+"""Núcleo de pré-processamento (simplificação) das sequências de eventos.
 
-# Matriz de cenarios (fonte unica). Todos os parametros de execucao
-# (curso, atividade, assignment_id, paths) vem por flags de CLI.
-sys.path.insert(0, "src")
-from spm.sceneries import SCENERY_DEFINITIONS
+Transforma logs crus do Moodle em sequências de eventos catalogados, aplicando
+as técnicas de simplificação de cada cenário (multilevel, temporal folding,
+coalescing, spell). Todas as funções operam em memória sobre DataFrames/listas
+e parâmetros explícitos — não tocam em disco.
+
+A função de alto nível é :func:`simplify`, que recebe os logs, o mapeamento de
+eventos e um cenário (dict de flags) e devolve a lista de sequências por usuário.
+A orquestração baseada em arquivos (ler CSVs, iterar os 24 cenários, gravar JSON)
+fica em :mod:`spm.pipeline`.
+"""
+import re
+
+import pandas as pd
 
 
 def event_mapping(event, t: int, params: dict):
@@ -160,17 +163,6 @@ def generate_sequence_from_df(df, params: dict):
             spell(session)
     return sessions
 
-    # if params["coalescing_repeating"]:
-    #     coalescing_repeating(events)
-    #
-    # if params["coalescing_hidden"]:
-    #     coalescing_hidden(events, params["multilevel"])
-    #
-    # if params["spell"]:
-    #     spell(events)
-    #
-    # return events
-
 
 # make the database ready for GSP and prefix datamining algorithms
 def prepare_database(df, params: dict, grade_df=None) -> list:
@@ -183,7 +175,6 @@ def prepare_database(df, params: dict, grade_df=None) -> list:
         if events:
             new_user = {"key": str(userid), "events": events, "temporal_folding": params["tf"]}
             if grade_df is not None and not grade_df.empty:
-                # print(userid)
                 user_grade = grade_df.query(f"userid == {userid}")["student_grade"]
                 if user_grade.empty:
                     user_grade = 0.0
@@ -192,7 +183,6 @@ def prepare_database(df, params: dict, grade_df=None) -> list:
                 new_user["grade"] = user_grade
                 new_user["max_grade"] = grade_df["max_grade"].iloc[0]
             events_by_user.append(new_user)
-    # print(json.dumps(events_by_user[0], indent=2, default=lambda o: str(o)))
     return events_by_user
 
 
@@ -207,7 +197,6 @@ def partitioning(params, grade_df=None):
         all_logs_data.sort_values("t")
         .query(f"t >= {init_date} & t <= {final_date}")
         .query(f"assignment_id == {assignment_id} | component != 'core' & component != 'mod_page'")
-        # .query(f"t >= 1573527600 & t <= 1574218500")
     )
 
     first_access = all_logs_data.sort_values("t").drop_duplicates(subset=["userid"])
@@ -215,25 +204,19 @@ def partitioning(params, grade_df=None):
 
     if grade_df is not None:
         grades = grade_df.query(f"id == {assignment_id}")
-        # .query(f"time_open >= {init_date} & time_close <= {final_date}"))  # ["userid", "student_grade", "max_grade"]
 
     return [first_access, activity_logs, grades]
 
 
 def classify_events(activity, first_access):
-    return pd.concat([first_access, activity])  # .sort_values("userid")
+    return pd.concat([first_access, activity])
 
 
-def get_dates(params: dict) -> dict:
-    quiz = params["quiz"]
-
-    t_open = quiz.query(f"id == {params["assignment_id"]}")["t_open"].iloc[0]
-    t_close = quiz.query(f"id == {params["assignment_id"]}")["t_close"].iloc[0]
-
-    params["initial_date"] = t_open
-    params["final_date"] = t_close
-
-    return params
+def get_dates(quiz_df, assignment_id):
+    """Deriva (t_open, t_close) de uma atividade a partir do CSV de quizzes."""
+    t_open = quiz_df.query(f"id == {assignment_id}")["t_open"].iloc[0]
+    t_close = quiz_df.query(f"id == {assignment_id}")["t_close"].iloc[0]
+    return t_open, t_close
 
 
 def split_by_grade(prepared_data, threshold=0.5):
@@ -249,105 +232,44 @@ def split_by_grade(prepared_data, threshold=0.5):
     return high_grade, low_grade
 
 
-def parse_args(argv=None):
-    parser = argparse.ArgumentParser(
-        description="Pre-processa logs do Moodle gerando um JSON por cenario da matriz "
-        "(outputs/sceneries/{course}/{activity}/{scenery}.json)."
-    )
-    parser.add_argument("-co", "--course", type=int, required=True, help="Numero do curso (ex.: 2060, 2065)")
-    parser.add_argument("-act", "--activity", type=int, required=True, help="Numero da atividade (inteiro)")
-    parser.add_argument(
-        "-id", "--assignment-id", type=int, required=True,
-        help="Assignment ID da atividade; as datas (t_open/t_close) sao derivadas do quiz CSV",
-    )
-    parser.add_argument(
-        "--logs", type=str, default=None,
-        help="CSV de logs (default: data/raw/{course}/see_course{course}_logs_filtered.csv)",
-    )
-    parser.add_argument(
-        "--grades", type=str, default=None,
-        help="CSV de notas (default: data/raw/{course}/see_course{course}_quiz_grades.csv)",
-    )
-    parser.add_argument(
-        "--quiz", type=str, default=None,
-        help="CSV da lista de quizzes (default: data/raw/{course}/see_course{course}_quiz_list.csv)",
-    )
-    parser.add_argument(
-        "--mapping", type=str, default=None,
-        help="CSV de mapeamento de eventos (default: data/raw/{course}/event_mapping.csv)",
-    )
-    parser.add_argument(
-        "--out-dir", type=str, default="outputs/sceneries",
-        help="Raiz de saida dos cenarios (default: outputs/sceneries)",
-    )
-    parser.add_argument("--split-grade", action="store_true", help="Gera variantes _high/_low por nota")
-    return parser.parse_args(argv)
+def simplify(logs_df, mapping_df, scenario, *, assignment_id, initial_date, final_date,
+             grades_df=None, split_grade=False):
+    """Simplifica os logs de uma atividade segundo um cenário, em memória.
 
+    Args:
+        logs_df: DataFrame de logs crus do Moodle (colunas userid, t, component,
+            action, target, assignment_id, ...).
+        mapping_df: DataFrame de mapeamento de eventos (component/action/target -> class).
+        scenario: dict com as flags do cenário (multilevel, spell,
+            coalescing_repeating, coalescing_hidden, tf) — ver
+            :data:`spm.sceneries.SCENERY_DEFINITIONS`.
+        assignment_id: ID da atividade a recortar dos logs.
+        initial_date, final_date: janela temporal (timestamps) da atividade;
+            normalmente derivada do quiz CSV via :func:`get_dates`.
+        grades_df: DataFrame de notas (opcional); se dado, anexa grade/max_grade.
+        split_grade: se True, devolve ``(high, low)`` separados por nota.
 
-def build_params(args) -> dict:
-    course = args.course
-    base = f"data/raw/{course}"
-    logs = args.logs or f"{base}/see_course{course}_logs_filtered.csv"
-    grades = args.grades or f"{base}/see_course{course}_quiz_grades.csv"
-    quiz = args.quiz or f"{base}/see_course{course}_quiz_list.csv"
-    mapping = args.mapping or f"{base}/event_mapping.csv"
-
+    Returns:
+        Lista de sequências por usuário (``events_by_user``), ou a tupla
+        ``(high_grade, low_grade)`` quando ``split_grade=True``.
+    """
     params = {
-        "course": course,
-        "activity": args.activity,
-        "assignment_id": args.assignment_id,
-        "grade_path": grades,
-        "data": pd.read_csv(logs, index_col="id").sort_values("t"),
-        "mapping": pd.read_csv(mapping),
-        "quiz": pd.read_csv(quiz),
-        "split_grade": args.split_grade,
+        "data": logs_df.sort_values("t"),
+        "mapping": mapping_df,
+        "assignment_id": assignment_id,
+        "initial_date": initial_date,
+        "final_date": final_date,
+        "multilevel": scenario["multilevel"],
+        "coalescing_repeating": scenario["coalescing_repeating"],
+        "coalescing_hidden": scenario["coalescing_hidden"],
+        "spell": scenario["spell"],
+        "tf": scenario["tf"],
     }
-    # Deriva initial_date/final_date (t_open/t_close) a partir do quiz CSV.
-    params = get_dates(params)
-    return params
 
+    first_access, activity_logs, grades = partitioning(params, grades_df)
+    activity_logs = classify_events(activity_logs, first_access)
+    events_by_user = prepare_database(activity_logs, params, grades)
 
-def run(args) -> None:
-    params = build_params(args)
-    course = params["course"]
-    activity = params["activity"]
-    scenery_dir = f"{args.out_dir}/{course}/{activity}"
-    os.makedirs(scenery_dir, exist_ok=True)
-    if params["split_grade"]:
-        os.makedirs(f"{scenery_dir}/split_grade", exist_ok=True)
-
-    grade_df = pd.read_csv(params["grade_path"]) if params["grade_path"] else None
-
-    print(f"Simplificacao | curso {course} atividade {activity} assignment {params['assignment_id']}")
-    print(f"  datas (do quiz CSV): {params['initial_date']} -> {params['final_date']}")
-    print(f"  cenarios: {len(SCENERY_DEFINITIONS)} -> {scenery_dir}\n")
-
-    for scenery in SCENERY_DEFINITIONS:
-        start = time.time()
-        params["multilevel"] = scenery["multilevel"]
-        params["coalescing_repeating"] = scenery["coalescing_repeating"]
-        params["coalescing_hidden"] = scenery["coalescing_hidden"]
-        params["spell"] = scenery["spell"]
-        params["tf"] = scenery["tf"]
-
-        first_access, activity_logs, grades = partitioning(params, grade_df)
-        activity_logs = classify_events(activity_logs, first_access)
-        events_by_user = prepare_database(activity_logs, params, grades)
-
-        if params["split_grade"]:
-            high_grade, low_grade = split_by_grade(events_by_user)
-            base = f"{scenery_dir}/split_grade/{scenery['path']}"
-            with open(base + "_high.json", "w+") as file:
-                json.dump(high_grade, file, indent=2, default=lambda o: str(o))
-            with open(base + "_low.json", "w+") as file:
-                json.dump(low_grade, file, indent=2, default=lambda o: str(o))
-            out = base + "_{high,low}.json"
-        else:
-            out = f"{scenery_dir}/{scenery['path']}.json"
-            with open(out, "w+") as file:
-                json.dump(events_by_user, file, indent=2, default=lambda o: str(o))
-        print(f"  {scenery['path']}: {(time.time() - start):.2f}s -> {out}")
-
-
-if __name__ == "__main__":
-    run(parse_args())
+    if split_grade:
+        return split_by_grade(events_by_user)
+    return events_by_user

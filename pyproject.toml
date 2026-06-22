@@ -12,13 +12,15 @@ dependencies = [
     "pandas",
     "numpy",
     "prefixspan==0.5.2",
-    "gsppy==1.1",
-    "matplotlib",
-    "seaborn",
 ]
 
 [project.optional-dependencies]
+gsp = ["gsppy"]                       # algoritmo GSP (spm.mining.gsp_mining) e scripts legados
+viz = ["matplotlib", "seaborn"]       # scripts de visualização legados (scripts/viz/*)
 dev = ["black==24.10.0", "pytest"]
+
+[project.scripts]
+spm = "spm.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
