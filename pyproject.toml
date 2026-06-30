@@ -5,14 +5,39 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "spm-torres"
 version = "0.1.0"
-description = "Sequential Pattern Mining sobre logs de aprendizagem do Moodle (cursos 2060 e 2065)."
+description = "Sequential Pattern Mining over Moodle learning logs (support, grades, time spans and Jaccard diversity across simplification scenarios)."
 readme = "README.md"
 requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Thiago Torres", email = "thiago.torress@upe.br" },
+]
+keywords = [
+    "sequential-pattern-mining",
+    "educational-data-mining",
+    "learning-analytics",
+    "moodle",
+    "prefixspan",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 dependencies = [
     "pandas",
     "numpy",
     "prefixspan==0.5.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/AkiraTorres/spm-preprocessing"
+Repository = "https://github.com/AkiraTorres/spm-preprocessing"
 
 [project.optional-dependencies]
 gsp = ["gsppy"]                       # algoritmo GSP (spm.mining.gsp_mining) e scripts legados
