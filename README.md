@@ -58,10 +58,6 @@ The pipeline mines patterns with **PrefixSpan** by default; GSP (`spm.mining.gsp
 via the optional `gsppy`) is provided only as an alternative and is not used by `mine()`.
 Everything else is optional.
 
-> **Note (external NTFS drive):** create the `.venv` with `python -m venv` (real
-> symlinks). Copies of a `.venv` made by file managers on filesystems without
-> symlink support may break the binaries ("exec format error").
-
 ---
 
 ## Project structure
