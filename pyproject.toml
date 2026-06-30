@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spm-torres"
-version = "0.1.0"
+version = "1.0.0"
 description = "Sequential Pattern Mining over Moodle learning logs (support, grades, time spans and Jaccard diversity across simplification scenarios)."
 readme = "README.md"
 requires-python = ">=3.10"

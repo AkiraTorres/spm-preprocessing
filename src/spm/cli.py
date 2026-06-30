@@ -5,7 +5,7 @@ Subcomandos: ``simplify``, ``mine``, ``metrics`` e ``pipeline``.
 """
 import argparse
 
-from . import pipeline
+from . import __version__, pipeline
 
 
 def _add_common(parser):
@@ -19,6 +19,7 @@ def build_parser():
         description="Sequential Pattern Mining sobre logs do Moodle: pré-processamento, "
                     "mineração (PrefixSpan) e métricas por cenário.",
     )
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_pipe = sub.add_parser("pipeline", help="Roda as 3 etapas em sequência")

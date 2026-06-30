@@ -19,6 +19,8 @@ Uso baseado em arquivos (equivalente à CLI ``spm``)::
     from spm import run_pipeline
     run_pipeline(course=2060, activity=2, total_sequences=11974)
 """
+from importlib.metadata import PackageNotFoundError, version
+
 from . import config, paths
 from .metrics import metrics
 from .mining import mine
@@ -26,7 +28,13 @@ from .pipeline import run_metrics, run_mining, run_pipeline, run_simplification
 from .sceneries import SCENERY_DEFINITIONS, SCENERIES_NAMES
 from .simplification import simplify
 
+try:
+    __version__ = version("spm-torres")
+except PackageNotFoundError:
+    __version__ = "0.0.0+unknown"
+
 __all__ = [
+    "__version__",
     # núcleo em memória
     "simplify",
     "mine",
