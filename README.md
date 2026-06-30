@@ -1,4 +1,4 @@
-# SPM Torres — Sequential Pattern Mining over Moodle logs
+# Sequence Simplification for Pattern Mining in Moodle Logs
 
 A research library that mines **frequent event sequences** from student activity
 traces (Moodle LMS logs) and computes metrics (support, grades, time spans,
