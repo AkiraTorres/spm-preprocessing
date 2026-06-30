@@ -49,11 +49,13 @@ Optional extras:
 
 ```bash
 pip install -e ".[viz]"     # matplotlib/seaborn — only for the legacy plotting scripts
-pip install -e ".[gsp]"     # gsppy — GSP algorithm (spm.mining.gsp_mining)
+pip install -e ".[gsp]"     # gsppy — optional GSP miner (alternative to the default PrefixSpan)
 pip install -e ".[dev]"     # black, pytest
 ```
 
 Core runtime dependencies: **`pandas`**, **`numpy`**, **`prefixspan`**.
+The pipeline mines patterns with **PrefixSpan** by default; GSP (`spm.mining.gsp_mining`,
+via the optional `gsppy`) is provided only as an alternative and is not used by `mine()`.
 Everything else is optional.
 
 > **Note (external NTFS drive):** create the `.venv` with `python -m venv` (real
@@ -89,8 +91,7 @@ Everything else is optional.
 │   └── figures/
 ├── notebooks/            # exploration (.ipynb, gitignored)
 ├── docs/                 # CODE_ORGANIZATION, JACCARD_METRICS, OPTIMIZATIONS (gitignored)
-├── pyproject.toml        # packaging + the `spm` entry point
-└── requirements.txt
+└── pyproject.toml        # packaging, dependencies + the `spm` entry point
 ```
 
 ---
